@@ -1,0 +1,16 @@
+../Core/Src/main.c:99:6:delay	16	static
+../Core/Src/main.c:107:6:stepper_set_rpm	16	static
+../Core/Src/main.c:112:6:stepper_half_drive	16	static
+../Core/Src/main.c:173:6:stepper_step_angle	32	static
+../Core/Src/main.c:202:5:main	8	static
+../Core/Src/main.c:293:6:SystemClock_Config	88	static
+../Core/Src/main.c:340:13:MX_I2C1_Init	8	static
+../Core/Src/main.c:374:13:MX_TIM2_Init	32	static
+../Core/Src/main.c:419:13:MX_TIM3_Init	56	static
+../Core/Src/main.c:468:13:MX_GPIO_Init	48	static
+../Core/Src/main.c:517:6:StartMainTask	16	static
+../Core/Src/main.c:580:6:StartDebouncingTask	24	static
+../Core/Src/main.c:614:6:StartEncoderTask	16	static
+../Core/Src/main.c:652:6:StartPumpTask	16	static
+../Core/Src/main.c:671:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:688:6:Error_Handler	4	static,ignoring_inline_asm
