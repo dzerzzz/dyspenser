@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <math.h>
+#include <ssd1306.h>
+#include <bitmaps.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,6 +75,13 @@ const osThreadAttr_t pumpTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for oledTask */
+osThreadId_t oledTaskHandle;
+const osThreadAttr_t oledTask_attributes = {
+  .name = "oledTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -87,6 +96,7 @@ void StartMainTask(void *argument);
 void StartDebouncingTask(void *argument);
 void StartEncoderTask(void *argument);
 void StartPumpTask(void *argument);
+void StartOledTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -187,11 +197,11 @@ void stepper_step_angle (float angle, int rpm)
 
 //ENKODER
 int16_t counter = 0;
-uint16_t key_state = 0;
+uint16_t key_state = 1;
 int howMany = 0;
-int press = 1;
-
-
+int press = 0;
+int without_blinking = 0;
+int block = 0;
 
 /* USER CODE END 0 */
 
@@ -202,7 +212,6 @@ int press = 1;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -229,6 +238,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Encoder_Start_IT(&htim3, TIM_CHANNEL_ALL);
+  SSD1306_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -262,6 +272,9 @@ int main(void)
 
   /* creation of pumpTask */
   pumpTaskHandle = osThreadNew(StartPumpTask, NULL, &pumpTask_attributes);
+
+  /* creation of oledTask */
+  oledTaskHandle = osThreadNew(StartOledTask, NULL, &oledTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -348,7 +361,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 400000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -501,6 +514,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -523,12 +542,17 @@ void StartMainTask(void *argument)
 	  //przycisk musi byc wcisniety
 	  //casy podzielone na mniejsze zadania tj. docelowo nalanie kielona, obrot o 60 stopni i dekrementacje howMany
 
+	  if(howMany == 5)
+	  {
+		  press = 1;
+	  }
+
 	if(press == 1)
 	{
 		switch (howMany)
 		{
 			case 0:
-				press = 0;
+				//press = 0;
 			break;
 
 			case 1:
@@ -584,13 +608,18 @@ void StartDebouncingTask(void *argument)
 	/* Infinite loop */
 	for (;;)
 	{
-		if(key_state == 1)
+		if(key_state == 0 && block == 0)
 		{
 			if(press == 1) press = 0;
 			else press = 1;
+			block = 1;
+		}
+		else if (key_state == 1)
+		{
+			block = 0;
 		}
 
-		GPIO_PinState new_state = HAL_GPIO_ReadPin(KEY_GPIO_Port, KEY_Pin);
+		GPIO_PinState new_state = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0);
 
 		if (new_state != key_state && new_state == GPIO_PIN_RESET)
 		{
@@ -599,7 +628,7 @@ void StartDebouncingTask(void *argument)
 		}
 		key_state = new_state;
 
-		osDelay(30 / portTICK_PERIOD_MS);
+		osDelay(10 / portTICK_PERIOD_MS);
 	}
   /* USER CODE END StartDebouncingTask */
 }
@@ -658,6 +687,83 @@ void StartPumpTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartPumpTask */
+}
+
+/* USER CODE BEGIN Header_StartOledTask */
+/**
+* @brief Function implementing the oledTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartOledTask */
+void StartOledTask(void *argument)
+{
+  /* USER CODE BEGIN StartOledTask */
+  /* Infinite loop */
+  for(;;)
+  {
+	  if(howMany == 0)
+	  {
+		  if (without_blinking == 1) SSD1306_Clear();
+		  SSD1306_Stopscroll();
+		  SSD1306_GotoXY(0, 0);
+		  SSD1306_Puts("Elo alkonie", &Font_11x18, 1);
+		  SSD1306_GotoXY(0, 18);
+		  SSD1306_Puts("Chcesz sie najebac?", &Font_7x10, 1);
+		  SSD1306_GotoXY(0, 28);
+		  SSD1306_Puts("Kliknij przycisk", &Font_7x10, 1);
+		  SSD1306_GotoXY(0, 38);
+		  SSD1306_Puts("po prawo -->", &Font_7x10, 1);
+		  SSD1306_UpdateScreen();
+		  osDelay(500 / portTICK_PERIOD_MS);
+		  without_blinking = 0;
+	  }
+	  else if(howMany == 1)
+	  {
+		  //szukanie kielona
+		  if (without_blinking == 0) SSD1306_Clear();
+		  SSD1306_DrawBitmap(30, 0, lupa, 60, 58, 1);
+		  SSD1306_UpdateScreen();
+		  SSD1306_ScrollRight(0x00, 0x0f);
+		  osDelay(550 / portTICK_PERIOD_MS);
+		  SSD1306_ScrollLeft(0x00, 0x0f);
+		  osDelay(500 / portTICK_PERIOD_MS);
+		  without_blinking = 1;
+	  }
+	  else if(howMany == 2)
+	  {
+		  //nalewanie kielona
+		  if (without_blinking == 1) SSD1306_Clear();
+		  SSD1306_Stopscroll();
+		  SSD1306_DrawBitmap(40, 0, kielon, 40, 60, 1);
+		  SSD1306_UpdateScreen();
+		  //ciecz
+		  int16_t byteWidth = (30 + 7) / 8;
+		  uint8_t byte = 0;
+		  int16_t x = 45;
+		  int16_t y = 44;
+		  for(int16_t j=40; j>0; j--, y--)
+		  {
+			  for(int16_t i=0; i<30; i++)
+			  {
+				  if(i & 7)
+				  {
+					  byte <<= 1;
+				  }
+				  else
+				  {
+					  byte = (*(const unsigned char *)(&ciecz[j * byteWidth + i / 8]));
+				  }
+				  if(byte & 0x80) SSD1306_DrawPixel(x+i, y, 1);
+				  if(i%7==0) SSD1306_UpdateScreen();
+				}
+			}
+		  without_blinking = 0;
+	  }
+
+	  osDelay(100 / portTICK_PERIOD_MS);
+  }
+  /* USER CODE END StartOledTask */
 }
 
 /**
