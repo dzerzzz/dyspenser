@@ -5,12 +5,16 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/DWT_Delay.c \
 ../Core/Src/bitmaps.c \
 ../Core/Src/encoder.c \
 ../Core/Src/freertos.c \
 ../Core/Src/gui.c \
 ../Core/Src/main.c \
+../Core/Src/pump.c \
 ../Core/Src/stepper.c \
+../Core/Src/stepper_motor.c \
+../Core/Src/stepper_motor_cfg.c \
 ../Core/Src/stm32f4xx_hal_msp.c \
 ../Core/Src/stm32f4xx_hal_timebase_tim.c \
 ../Core/Src/stm32f4xx_it.c \
@@ -20,12 +24,16 @@ C_SRCS += \
 ../Core/Src/tof.c 
 
 OBJS += \
+./Core/Src/DWT_Delay.o \
 ./Core/Src/bitmaps.o \
 ./Core/Src/encoder.o \
 ./Core/Src/freertos.o \
 ./Core/Src/gui.o \
 ./Core/Src/main.o \
+./Core/Src/pump.o \
 ./Core/Src/stepper.o \
+./Core/Src/stepper_motor.o \
+./Core/Src/stepper_motor_cfg.o \
 ./Core/Src/stm32f4xx_hal_msp.o \
 ./Core/Src/stm32f4xx_hal_timebase_tim.o \
 ./Core/Src/stm32f4xx_it.o \
@@ -35,12 +43,16 @@ OBJS += \
 ./Core/Src/tof.o 
 
 C_DEPS += \
+./Core/Src/DWT_Delay.d \
 ./Core/Src/bitmaps.d \
 ./Core/Src/encoder.d \
 ./Core/Src/freertos.d \
 ./Core/Src/gui.d \
 ./Core/Src/main.d \
+./Core/Src/pump.d \
 ./Core/Src/stepper.d \
+./Core/Src/stepper_motor.d \
+./Core/Src/stepper_motor_cfg.d \
 ./Core/Src/stm32f4xx_hal_msp.d \
 ./Core/Src/stm32f4xx_hal_timebase_tim.d \
 ./Core/Src/stm32f4xx_it.d \
@@ -57,7 +69,7 @@ Core/Src/%.o Core/Src/%.su: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/bitmaps.d ./Core/Src/bitmaps.o ./Core/Src/bitmaps.su ./Core/Src/encoder.d ./Core/Src/encoder.o ./Core/Src/encoder.su ./Core/Src/freertos.d ./Core/Src/freertos.o ./Core/Src/freertos.su ./Core/Src/gui.d ./Core/Src/gui.o ./Core/Src/gui.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stepper.d ./Core/Src/stepper.o ./Core/Src/stepper.su ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su ./Core/Src/tof.d ./Core/Src/tof.o ./Core/Src/tof.su
+	-$(RM) ./Core/Src/DWT_Delay.d ./Core/Src/DWT_Delay.o ./Core/Src/DWT_Delay.su ./Core/Src/bitmaps.d ./Core/Src/bitmaps.o ./Core/Src/bitmaps.su ./Core/Src/encoder.d ./Core/Src/encoder.o ./Core/Src/encoder.su ./Core/Src/freertos.d ./Core/Src/freertos.o ./Core/Src/freertos.su ./Core/Src/gui.d ./Core/Src/gui.o ./Core/Src/gui.su ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/pump.d ./Core/Src/pump.o ./Core/Src/pump.su ./Core/Src/stepper.d ./Core/Src/stepper.o ./Core/Src/stepper.su ./Core/Src/stepper_motor.d ./Core/Src/stepper_motor.o ./Core/Src/stepper_motor.su ./Core/Src/stepper_motor_cfg.d ./Core/Src/stepper_motor_cfg.o ./Core/Src/stepper_motor_cfg.su ./Core/Src/stm32f4xx_hal_msp.d ./Core/Src/stm32f4xx_hal_msp.o ./Core/Src/stm32f4xx_hal_msp.su ./Core/Src/stm32f4xx_hal_timebase_tim.d ./Core/Src/stm32f4xx_hal_timebase_tim.o ./Core/Src/stm32f4xx_hal_timebase_tim.su ./Core/Src/stm32f4xx_it.d ./Core/Src/stm32f4xx_it.o ./Core/Src/stm32f4xx_it.su ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f4xx.d ./Core/Src/system_stm32f4xx.o ./Core/Src/system_stm32f4xx.su ./Core/Src/tof.d ./Core/Src/tof.o ./Core/Src/tof.su
 
 .PHONY: clean-Core-2f-Src
 

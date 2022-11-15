@@ -69,10 +69,10 @@ void Error_Handler(void);
 #define STEPIN3_GPIO_Port GPIOA
 #define STEPIN4_Pin GPIO_PIN_4
 #define STEPIN4_GPIO_Port GPIOA
-#define SW_Pin GPIO_PIN_0
-#define SW_GPIO_Port GPIOB
 #define TOF_XSHUT_Pin GPIO_PIN_1
 #define TOF_XSHUT_GPIO_Port GPIOB
+#define SW_Pin GPIO_PIN_9
+#define SW_GPIO_Port GPIOA
 #define PUMPIN1_Pin GPIO_PIN_5
 #define PUMPIN1_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */

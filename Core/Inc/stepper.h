@@ -18,4 +18,6 @@ void delay(uint16_t us);
 void stepper_set_rpm(int rpm);
 void stepper_half_drive(int step);
 void stepper_step_angle(float angle, int rpm);
+void StepperCallback(void);
+void StepperStart(void);
 #endif /* INC_STEPPER_H_ */

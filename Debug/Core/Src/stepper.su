@@ -1,4 +1,6 @@
 ../Core/Src/stepper.c:9:6:delay	16	static
-../Core/Src/stepper.c:14:6:stepper_set_rpm	16	static
-../Core/Src/stepper.c:19:6:stepper_half_drive	16	static
-../Core/Src/stepper.c:79:6:stepper_step_angle	32	static
+../Core/Src/stepper.c:14:6:StepperStart	8	static
+../Core/Src/stepper.c:21:6:StepperCallback	8	static
+../Core/Src/stepper.c:26:6:stepper_set_rpm	16	static
+../Core/Src/stepper.c:31:6:stepper_half_drive	16	static
+../Core/Src/stepper.c:91:6:stepper_step_angle	32	static

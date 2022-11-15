@@ -1,0 +1,10 @@
+../Core/Inc/DWT_Delay.h:39:22:DWT_Delay_ms	24	static
+../Core/Src/stepper_motor.c:66:6:STEPPERS_Init	48	static
+../Core/Src/stepper_motor.c:127:6:STEPPERS_Init_TMR	48	static
+../Core/Src/stepper_motor.c:155:6:STEPPER_SetSpeed	32	static
+../Core/Src/stepper_motor.c:171:13:STEPPER_One_Step	24	static
+../Core/Src/stepper_motor.c:222:6:STEPPER_Step_Blocking	24	static
+../Core/Src/stepper_motor.c:238:6:STEPPER_Step_NonBlocking	16	static
+../Core/Src/stepper_motor.c:244:6:STEPPER_Stop	16	static
+../Core/Src/stepper_motor.c:253:6:STEPPER_Main	16	static
+../Core/Src/stepper_motor.c:272:6:STEPPER_TMR_OVF_ISR	24	static

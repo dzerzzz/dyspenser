@@ -27,6 +27,8 @@
 #include "gui.h"
 #include "stepper.h"
 #include "tof.h"
+#include "stepper_motor.h"
+#include "pump.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,7 +67,7 @@ osThreadId_t debouncingTaskHandle;
 const osThreadAttr_t debouncingTask_attributes = {
   .name = "debouncingTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for pumpTask */
 osThreadId_t pumpTaskHandle;
@@ -79,10 +81,11 @@ osThreadId_t oledTaskHandle;
 const osThreadAttr_t oledTask_attributes = {
   .name = "oledTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-
+uint16_t distance = 0;
+uint8_t Steppers_Dir = DIR_CW;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,41 +117,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	encoderPosition = __HAL_TIM_GET_COUNTER(&htim3) >>2;
 }
 
-//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-//{
-//	if(GPIO_Pin == TOF_INT_Pin)
-//	{
-//		VL53L0X_GetRangingMeasurementData(Dev, &RangingData);
-//		VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
-//		TofDataRead = 1;
-//	}
-//}
-
-void ChangePumpPourTime(int ms) {
-	switch (ms) {
-	case 1000:
-		TIM10->PSC = 19999; //Do calculation for proper value
-		TIM10->ARR = 3599; ///As above
-		break;
-	case 2000: //TODO: This is wrong
-		TIM10->PSC = 19999; //Do calculation for proper value
-		TIM10->ARR = 1799; ///As above
-		break;
-	case 3000: //TODO: This is wrong
-		TIM10->PSC = 19999; //Do calculation for proper value
-		TIM10->ARR = 12000; ///As above
-		break;
-	case 4000:
-		TIM10->PSC = 19999;
-		TIM10->ARR = 14399;
-		break;
-	default:
-		TIM10->PSC = 19999; //Do calculation for proper value
-		TIM10->ARR = 6544; ///As above
-		break;
-	}
-}
-
 enum DeviceStatus {
 	Idle, Pouring
 } status;
@@ -160,31 +128,14 @@ enum MenuStatus {
 	Settings
 } statusMenu;
 
-void StartPump(void) {
-	status = Pouring;
-	HAL_TIM_Base_Stop_IT(&htim10); //TODO: Check if necessary
-	HAL_GPIO_WritePin(PUMPIN1_GPIO_Port, PUMPIN1_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET); //TODO: Remove this after tests
-	HAL_TIM_Base_Start_IT(&htim10);
-
-}
-
-void StopPump(void) {
-	status = Idle;
-	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET); //TODO: Remove this after tests
-	HAL_GPIO_WritePin(PUMPIN1_GPIO_Port, PUMPIN1_Pin, GPIO_PIN_RESET);
-	HAL_TIM_Base_Stop_IT(&htim10);
-}
-
 int16_t counter = 0;
 uint16_t key_state = 1;
-int counterTom = 0;
 int press = 0;
 int liquidVolume = 24;
 int tempLiquidVolume = 24;
 char volume[] = "  ";
 char distancemm[] = "    ";
-uint16_t distance = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -224,14 +175,18 @@ int main(void)
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
+	STEPPERS_Init_TMR(&htim2);
 
-	HAL_TIM_Base_Start(&htim2);
+    STEPPER_Step_NonBlocking(0, 8192, Steppers_Dir);
+	//HAL_TIM_Base_Start(&htim2);
 	HAL_TIM_Encoder_Start_IT(&htim3, TIM_CHANNEL_ALL);
 	SSD1306_Init();
 	TIM10->EGR = TIM_EGR_UG; /* Force update for prescaler value. */
 	TIM10->SR = 0; /* Clear update flag. */
 	TIM11->EGR = TIM_EGR_UG; /* Force update for prescaler value. */
 	TIM11->SR = 0; /* Clear update flag. */
+	TIM2->EGR = TIM_EGR_UG; /* Force update for prescaler value. */
+	TIM2->SR = 0; /* Clear update flag. */
 
 	HAL_GPIO_WritePin(TOF_XSHUT_GPIO_Port, TOF_XSHUT_Pin, GPIO_PIN_RESET); // Disable XSHUT
 	HAL_Delay(20);
@@ -652,18 +607,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SW_Pin */
-  GPIO_InitStruct.Pin = SW_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SW_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : TOF_XSHUT_Pin PUMPIN1_Pin */
   GPIO_InitStruct.Pin = TOF_XSHUT_Pin|PUMPIN1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SW_Pin */
+  GPIO_InitStruct.Pin = SW_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(SW_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -683,12 +638,10 @@ void StartMainTask(void *argument)
   /* USER CODE BEGIN 5 */
 	/* Infinite loop */
 	for (;;) {
-		distance = (uint16_t)tofReadDistance();
-
-		if (distance < 100)
+		/*if (distance < 100)
 		{
-			stepper_step_angle(45, 13);
-		}
+			//stepper_step_angle(45, 13);
+		}*/
 		osDelay(40 / portTICK_PERIOD_MS);
 	}
   /* USER CODE END 5 */
@@ -710,18 +663,16 @@ void StartDebouncingTask(void *argument)
 		GPIO_PinState new_state = HAL_GPIO_ReadPin(SW_GPIO_Port, SW_Pin);
 
 		if (new_state != key_state && new_state == GPIO_PIN_RESET) {
+			STEPPER_Stop(0);
+			//STEPPER_Step_NonBlocking(0, 2000, Steppers_Dir);
+			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 			ResetPosition();
 			press = 1;
 		}
-
-		if(press == 1)
-		{
-			SSD1306_Clear();
-		}
-
 		key_state = new_state;
 
-		osDelay(100 / portTICK_PERIOD_MS);
+		//HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, new_state);
+		osDelay(30 / portTICK_PERIOD_MS);
 	}
   /* USER CODE END StartDebouncingTask */
 }
@@ -744,6 +695,7 @@ void StartPumpTask(void *argument)
 //		} else {
 //}
 //		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		//distance = (uint16_t)tofReadDistance();
 		osDelay(200 / portTICK_PERIOD_MS);
 	}
   /* USER CODE END StartPumpTask */
@@ -759,9 +711,15 @@ void StartPumpTask(void *argument)
 void StartOledTask(void *argument)
 {
   /* USER CODE BEGIN StartOledTask */
+	GuiState old = StartLayer;
 	/* Infinite loop */
 	for (;;) {
 
+		if(old != statusOled) //TODO: Fix this shit
+		{
+			SSD1306_Clear();
+		}
+		old = statusOled;
 		SetAnimationTime();
 		switch (statusOled) {
 		case StartLayer:
@@ -889,6 +847,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if (htim->Instance == TIM11) {
 
 	}
+//	if(htim->Instance == TIM2){
+//		StepperCallback();
+//	}
+	STEPPER_TMR_OVF_ISR(htim);
   /* USER CODE END Callback 1 */
 }
 

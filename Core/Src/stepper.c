@@ -11,6 +11,18 @@ void delay(uint16_t us) {
 	while (__HAL_TIM_GET_COUNTER(&htim2) < us);
 }
 
+void StepperStart(void)
+{
+	TIM2 -> ARR = 10000;
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+	HAL_TIM_Base_Start_IT(&htim2);
+}
+
+void StepperCallback()
+{
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+}
+
 void stepper_set_rpm(int rpm) // Set rpm--> max 13, min 1,,,  went to 14 rev/min
 {
 	delay(60000000 / stepsperrev / rpm);
