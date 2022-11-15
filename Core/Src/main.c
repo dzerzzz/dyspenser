@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2022 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -22,9 +22,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <math.h>
-#include <ssd1306.h>
-#include <bitmaps.h>
+#include "ssd1306.h"
+#include "encoder.h"
+#include "gui.h"
+#include "stepper.h"
+#include "tof.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,9 +45,13 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim10;
+TIM_HandleTypeDef htim11;
 
 /* Definitions for mainTask */
 osThreadId_t mainTaskHandle;
@@ -58,13 +64,6 @@ const osThreadAttr_t mainTask_attributes = {
 osThreadId_t debouncingTaskHandle;
 const osThreadAttr_t debouncingTask_attributes = {
   .name = "debouncingTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for encoderTask */
-osThreadId_t encoderTaskHandle;
-const osThreadAttr_t encoderTask_attributes = {
-  .name = "encoderTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -92,9 +91,12 @@ static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM10_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_TIM11_Init(void);
+static void MX_I2C2_Init(void);
 void StartMainTask(void *argument);
 void StartDebouncingTask(void *argument);
-void StartEncoderTask(void *argument);
 void StartPumpTask(void *argument);
 void StartOledTask(void *argument);
 
@@ -105,104 +107,84 @@ void StartOledTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-//KROKOWIEC
-void delay (uint16_t us)
+uint32_t encoderPosition = 0;
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-	__HAL_TIM_SET_COUNTER(&htim2, 0);
-	while(__HAL_TIM_GET_COUNTER(&htim2) < us);
+	encoderPosition = __HAL_TIM_GET_COUNTER(&htim3) >>2;
 }
 
-#define stepsperrev 4096
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+//{
+//	if(GPIO_Pin == TOF_INT_Pin)
+//	{
+//		VL53L0X_GetRangingMeasurementData(Dev, &RangingData);
+//		VL53L0X_ClearInterruptMask(Dev, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+//		TofDataRead = 1;
+//	}
+//}
 
-void stepper_set_rpm (int rpm)  // Set rpm--> max 13, min 1,,,  went to 14 rev/min
-{
-	delay(60000000/stepsperrev/rpm);
-}
-
-void stepper_half_drive (int step)
-{
-	switch (step){
-		case 0:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);   // IN4
-			  break;
-
-		case 1:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);   // IN4
-			  break;
-
-		case 2:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);   // IN4
-			  break;
-
-		case 3:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);   // IN4
-			  break;
-
-		case 4:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);   // IN4
-			  break;
-
-		case 5:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);   // IN4
-			  break;
-
-		case 6:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);   // IN4
-			  break;
-
-		case 7:
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);   // IN1
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);   // IN2
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);   // IN3
-			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);   // IN4
-			  break;
-		}
-}
-
-void stepper_step_angle (float angle, int rpm)
-{
-	float anglepersequence = 0.703125;  // 360 = 512 sequences
-	int numberofsequences = (int) (angle/anglepersequence);
-
-	for (int seq=0; seq<numberofsequences; seq++)
-	{
-			for (int step=7; step>=0; step--)
-			{
-				stepper_half_drive(step);
-				stepper_set_rpm(rpm);
-			}
+void ChangePumpPourTime(int ms) {
+	switch (ms) {
+	case 1000:
+		TIM10->PSC = 19999; //Do calculation for proper value
+		TIM10->ARR = 3599; ///As above
+		break;
+	case 2000: //TODO: This is wrong
+		TIM10->PSC = 19999; //Do calculation for proper value
+		TIM10->ARR = 1799; ///As above
+		break;
+	case 3000: //TODO: This is wrong
+		TIM10->PSC = 19999; //Do calculation for proper value
+		TIM10->ARR = 12000; ///As above
+		break;
+	case 4000:
+		TIM10->PSC = 19999;
+		TIM10->ARR = 14399;
+		break;
+	default:
+		TIM10->PSC = 19999; //Do calculation for proper value
+		TIM10->ARR = 6544; ///As above
+		break;
 	}
 }
 
-//ENKODER
+enum DeviceStatus {
+	Idle, Pouring
+} status;
+
+GuiState statusOled = StartLayer;
+
+enum MenuStatus {
+	Start,
+	Settings
+} statusMenu;
+
+void StartPump(void) {
+	status = Pouring;
+	HAL_TIM_Base_Stop_IT(&htim10); //TODO: Check if necessary
+	HAL_GPIO_WritePin(PUMPIN1_GPIO_Port, PUMPIN1_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET); //TODO: Remove this after tests
+	HAL_TIM_Base_Start_IT(&htim10);
+
+}
+
+void StopPump(void) {
+	status = Idle;
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET); //TODO: Remove this after tests
+	HAL_GPIO_WritePin(PUMPIN1_GPIO_Port, PUMPIN1_Pin, GPIO_PIN_RESET);
+	HAL_TIM_Base_Stop_IT(&htim10);
+}
+
 int16_t counter = 0;
 uint16_t key_state = 1;
-int howMany = 0;
+int counterTom = 0;
 int press = 0;
-int without_blinking = 0;
-int block = 0;
-
+int liquidVolume = 24;
+int tempLiquidVolume = 24;
+char volume[] = "  ";
+char distancemm[] = "    ";
+uint16_t distance = 0;
 /* USER CODE END 0 */
 
 /**
@@ -212,6 +194,7 @@ int block = 0;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -235,29 +218,49 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_I2C1_Init();
+  MX_TIM10_Init();
+  MX_TIM4_Init();
+  MX_TIM11_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Encoder_Start_IT(&htim3, TIM_CHANNEL_ALL);
-  SSD1306_Init();
+
+
+	HAL_TIM_Base_Start(&htim2);
+	HAL_TIM_Encoder_Start_IT(&htim3, TIM_CHANNEL_ALL);
+	SSD1306_Init();
+	TIM10->EGR = TIM_EGR_UG; /* Force update for prescaler value. */
+	TIM10->SR = 0; /* Clear update flag. */
+	TIM11->EGR = TIM_EGR_UG; /* Force update for prescaler value. */
+	TIM11->SR = 0; /* Clear update flag. */
+
+	HAL_GPIO_WritePin(TOF_XSHUT_GPIO_Port, TOF_XSHUT_Pin, GPIO_PIN_RESET); // Disable XSHUT
+	HAL_Delay(20);
+	HAL_GPIO_WritePin(TOF_XSHUT_GPIO_Port, TOF_XSHUT_Pin, GPIO_PIN_SET); // Enable XSHUT
+	HAL_Delay(20);
+
+
+	tofInit(1); // set long range mode (up to 2m)
+
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+	/* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+	/* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
+	/* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+	/* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -267,9 +270,6 @@ int main(void)
   /* creation of debouncingTask */
   debouncingTaskHandle = osThreadNew(StartDebouncingTask, NULL, &debouncingTask_attributes);
 
-  /* creation of encoderTask */
-  encoderTaskHandle = osThreadNew(StartEncoderTask, NULL, &encoderTask_attributes);
-
   /* creation of pumpTask */
   pumpTaskHandle = osThreadNew(StartPumpTask, NULL, &pumpTask_attributes);
 
@@ -277,11 +277,11 @@ int main(void)
   oledTaskHandle = osThreadNew(StartOledTask, NULL, &oledTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+	/* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
+	/* add events, ... */
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
@@ -290,12 +290,12 @@ int main(void)
   /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1) {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -380,6 +380,40 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C2_Init(void)
+{
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.ClockSpeed = 400000;
+  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
+
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -445,14 +479,14 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 0;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 10000;
+  htim3.Init.Period = 1000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 10;
+  sConfig.IC1Filter = 0;
   sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
@@ -474,6 +508,107 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 65535;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_OnePulse_Init(&htim4, TIM_OPMODE_SINGLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 19999;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 3599;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
+
+}
+
+/**
+  * @brief TIM11 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM11_Init(void)
+{
+
+  /* USER CODE BEGIN TIM11_Init 0 */
+
+  /* USER CODE END TIM11_Init 0 */
+
+  /* USER CODE BEGIN TIM11_Init 1 */
+
+  /* USER CODE END TIM11_Init 1 */
+  htim11.Instance = TIM11;
+  htim11.Init.Prescaler = 499;
+  htim11.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim11.Init.Period = 35999;
+  htim11.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim11.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim11) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM11_Init 2 */
+
+  /* USER CODE END TIM11_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -489,10 +624,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, STEPIN1_Pin|STEPIN2_Pin|STEPIN3_Pin|STEPIN4_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, TOF_XSHUT_Pin|PUMPIN1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -507,17 +645,24 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA1 PA2 PA3 PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4;
+  /*Configure GPIO pins : STEPIN1_Pin STEPIN2_Pin STEPIN3_Pin STEPIN4_Pin */
+  GPIO_InitStruct.Pin = STEPIN1_Pin|STEPIN2_Pin|STEPIN3_Pin|STEPIN4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  /*Configure GPIO pin : SW_Pin */
+  GPIO_InitStruct.Pin = SW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(SW_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : TOF_XSHUT_Pin PUMPIN1_Pin */
+  GPIO_InitStruct.Pin = TOF_XSHUT_Pin|PUMPIN1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
@@ -528,241 +673,196 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN Header_StartMainTask */
 /**
-  * @brief  Function implementing the mainTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
+ * @brief  Function implementing the mainTask thread.
+ * @param  argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartMainTask */
 void StartMainTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-	  //przycisk musi byc wcisniety
-	  //casy podzielone na mniejsze zadania tj. docelowo nalanie kielona, obrot o 60 stopni i dekrementacje howMany
+	/* Infinite loop */
+	for (;;) {
+		distance = (uint16_t)tofReadDistance();
 
-	  if(howMany == 5)
-	  {
-		  press = 1;
-	  }
-
-	if(press == 1)
-	{
-		switch (howMany)
+		if (distance < 100)
 		{
-			case 0:
-				//press = 0;
-			break;
-
-			case 1:
-				stepper_step_angle(45, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 0);
-			break;
-
-			case 2:
-				stepper_step_angle(45, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 4);
-			break;
-
-			case 3:
-				stepper_step_angle(45, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 8);
-			break;
-
-			case 4:
-				stepper_step_angle(45, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 12);
-			break;
-
-			case 5:
-				//nalanie kielona
-				stepper_step_angle(180, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 16);
-			break;
-
-			case 6:
-				//nalanie kielona
-				stepper_step_angle(120, 14);
-				__HAL_TIM_SET_COUNTER(&htim3, 20);
-			break;
+			stepper_step_angle(45, 13);
 		}
+		osDelay(40 / portTICK_PERIOD_MS);
 	}
-
-    osDelay(100 / portTICK_PERIOD_MS);
-  }
   /* USER CODE END 5 */
 }
 
 /* USER CODE BEGIN Header_StartDebouncingTask */
 /**
-* @brief Function implementing the debouncingTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the debouncingTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartDebouncingTask */
 void StartDebouncingTask(void *argument)
 {
   /* USER CODE BEGIN StartDebouncingTask */
 
 	/* Infinite loop */
-	for (;;)
-	{
-		if(key_state == 0 && block == 0)
-		{
-			if(press == 1) press = 0;
-			else press = 1;
-			block = 1;
-		}
-		else if (key_state == 1)
-		{
-			block = 0;
+	for (;;) {
+		GPIO_PinState new_state = HAL_GPIO_ReadPin(SW_GPIO_Port, SW_Pin);
+
+		if (new_state != key_state && new_state == GPIO_PIN_RESET) {
+			ResetPosition();
+			press = 1;
 		}
 
-		GPIO_PinState new_state = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0);
-
-		if (new_state != key_state && new_state == GPIO_PIN_RESET)
+		if(press == 1)
 		{
-			// SW state simulate Short Circuit -> See interrupt
-			//SwitchOnRedLED();
+			SSD1306_Clear();
 		}
+
 		key_state = new_state;
 
-		osDelay(10 / portTICK_PERIOD_MS);
+		osDelay(100 / portTICK_PERIOD_MS);
 	}
   /* USER CODE END StartDebouncingTask */
 }
 
-/* USER CODE BEGIN Header_StartEncoderTask */
-/**
-* @brief Function implementing the encoderTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartEncoderTask */
-void StartEncoderTask(void *argument)
-{
-  /* USER CODE BEGIN StartEncoderTask */
-  /* Infinite loop */
-  for(;;)
-  {
-	  //Encoder
-		if(HAL_GPIO_ReadPin (GPIOA, GPIO_PIN_5))
-		{
-			howMany = (TIM3->CNT)>>2;
-		}
-		else
-		{
-			howMany = (TIM3->CNT)>>2;
-		}
-
-		if(__HAL_TIM_GET_COUNTER(&htim3)>4000)
-		{
-			__HAL_TIM_SET_COUNTER(&htim3, 0);
-			howMany = 0;
-		}
-		if(__HAL_TIM_GET_COUNTER(&htim3)>24)
-		{
-			__HAL_TIM_SET_COUNTER(&htim3, 24);
-			howMany = 6;
-		}
-		osDelay(100 / portTICK_PERIOD_MS);
-  }
-  /* USER CODE END StartEncoderTask */
-}
-
 /* USER CODE BEGIN Header_StartPumpTask */
 /**
-* @brief Function implementing the pumpTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the pumpTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartPumpTask */
 void StartPumpTask(void *argument)
 {
   /* USER CODE BEGIN StartPumpTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	/* Infinite loop */
+	for (;;) {
+//		if (press == 2) {
+//			ChangePumpPourTime(3000);
+//			StartPump();
+//		} else {
+//}
+//		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		osDelay(200 / portTICK_PERIOD_MS);
+	}
   /* USER CODE END StartPumpTask */
 }
 
 /* USER CODE BEGIN Header_StartOledTask */
 /**
-* @brief Function implementing the oledTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the oledTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartOledTask */
 void StartOledTask(void *argument)
 {
   /* USER CODE BEGIN StartOledTask */
-  /* Infinite loop */
-  for(;;)
-  {
-	  if(howMany == 0)
-	  {
-		  if (without_blinking == 1) SSD1306_Clear();
-		  SSD1306_Stopscroll();
-		  SSD1306_GotoXY(0, 0);
-		  SSD1306_Puts("Elo alkonie", &Font_11x18, 1);
-		  SSD1306_GotoXY(0, 18);
-		  SSD1306_Puts("Chcesz sie najebac?", &Font_7x10, 1);
-		  SSD1306_GotoXY(0, 28);
-		  SSD1306_Puts("Kliknij przycisk", &Font_7x10, 1);
-		  SSD1306_GotoXY(0, 38);
-		  SSD1306_Puts("po prawo -->", &Font_7x10, 1);
-		  SSD1306_UpdateScreen();
-		  osDelay(500 / portTICK_PERIOD_MS);
-		  without_blinking = 0;
-	  }
-	  else if(howMany == 1)
-	  {
-		  //szukanie kielona
-		  if (without_blinking == 0) SSD1306_Clear();
-		  SSD1306_DrawBitmap(30, 0, lupa, 60, 58, 1);
-		  SSD1306_UpdateScreen();
-		  SSD1306_ScrollRight(0x00, 0x0f);
-		  osDelay(550 / portTICK_PERIOD_MS);
-		  SSD1306_ScrollLeft(0x00, 0x0f);
-		  osDelay(500 / portTICK_PERIOD_MS);
-		  without_blinking = 1;
-	  }
-	  else if(howMany == 2)
-	  {
-		  //nalewanie kielona
-		  if (without_blinking == 1) SSD1306_Clear();
-		  SSD1306_Stopscroll();
-		  SSD1306_DrawBitmap(40, 0, kielon, 40, 60, 1);
-		  SSD1306_UpdateScreen();
-		  //ciecz
-		  int16_t byteWidth = (30 + 7) / 8;
-		  uint8_t byte = 0;
-		  int16_t x = 45;
-		  int16_t y = 44;
-		  for(int16_t j=40; j>0; j--, y--)
-		  {
-			  for(int16_t i=0; i<30; i++)
-			  {
-				  if(i & 7)
-				  {
-					  byte <<= 1;
-				  }
-				  else
-				  {
-					  byte = (*(const unsigned char *)(&ciecz[j * byteWidth + i / 8]));
-				  }
-				  if(byte & 0x80) SSD1306_DrawPixel(x+i, y, 1);
-				  if(i%7==0) SSD1306_UpdateScreen();
-				}
-			}
-		  without_blinking = 0;
-	  }
+	/* Infinite loop */
+	for (;;) {
 
-	  osDelay(100 / portTICK_PERIOD_MS);
-  }
+		SetAnimationTime();
+		switch (statusOled) {
+		case StartLayer:
+			if(press == 1) statusOled = MenuLayer;
+			SSD1306_GotoXY(0, 52);
+			distancemm[0] = '0' + ((int)distance % 10000/1000);
+			distancemm[1] = '0' + ((int)distance % 1000/100);
+			distancemm[2] = '0' + ((int)distance % 100/10);
+			distancemm[3] = '0' + ((int)distance % 10);
+			SSD1306_Puts("Distance:    mm", &Font_7x10, 1);
+			SSD1306_GotoXY(62, 52);
+			SSD1306_Putc(distancemm[0], &Font_7x10, 1);
+			SSD1306_GotoXY(69, 52);
+			SSD1306_Putc(distancemm[1], &Font_7x10, 1);
+			SSD1306_GotoXY(76, 52);
+			SSD1306_Putc(distancemm[2], &Font_7x10, 1);
+			SSD1306_GotoXY(83, 52);
+			SSD1306_Putc(distancemm[3], &Font_7x10, 1);
+			Print(StartLayer);
+			break;
+		case SettingsLayer:
+			if(press == 1) statusOled = MenuLayer;
+			liquidVolume = encoderPosition%50;
+			SSD1306_GotoXY(10, 0);
+			SSD1306_Puts(" SETTINGS ", &Font_11x18, 0);
+			SSD1306_GotoXY(0, 52);
+			volume[0] = '0' + ((int)liquidVolume % 100 / 10);
+			volume[1] = '0' + ((int)liquidVolume % 10);
+			SSD1306_Puts("Liquid volume:  ml", &Font_7x10, 1);
+			SSD1306_GotoXY(98, 52);
+			SSD1306_Putc(volume[0], &Font_7x10, 1);
+			SSD1306_GotoXY(105, 52);
+			SSD1306_Putc(volume[1], &Font_7x10, 1);
+			SSD1306_DrawFilledRectangle(13, 29, liquidVolume*2, 12, 1);
+			SSD1306_DrawFilledRectangle(14+liquidVolume*2, 29, 100-liquidVolume*2, 12, 0);
+			SSD1306_DrawRectangle(13, 28, 102, 14, 1);
+			SSD1306_DrawRectangle(14, 29, 100, 12, 1);
+			SSD1306_UpdateScreen();
+			break;
+		case PutShot:
+			if(press == 1) statusOled = Searching;
+			SSD1306_GotoXY(0, 53);
+			SSD1306_Puts("Put shot to feeder", &Font_7x10, 1);
+			if (flagDirectionPut == 1)
+			{
+				SSD1306_DrawFilledRectangle(20, 0, 75, 50, 0);
+				SSD1306_DrawBitmap(25, -animation-12, put, 68, 50, 1);
+				SSD1306_DrawBitmap(58, -animation+27, put2, 14, 20, 1);
+				SSD1306_UpdateScreen();
+			}
+			else
+			{
+				SSD1306_DrawFilledRectangle(20, 0, 75, 50, 0);
+				SSD1306_DrawBitmap(25, animation-32, put, 68, 50, 1);
+				SSD1306_DrawBitmap(58, 27, put2, 14, 20, 1);
+				SSD1306_UpdateScreen();
+			}
+			break;
+		case Searching:
+			switch(status)
+			{
+			case Idle:
+				if(press == 1) status = Pouring;
+				DrawShotSearching();
+				break;
+			case Pouring:
+				if(press == 1) statusOled = MenuLayer;
+				DrawShotFill();
+				break;
+			}
+			break;
+		case MenuLayer:
+			switch(encoderPosition%2)
+			{
+			case Start:
+				if(press == 1) statusOled = PutShot;
+				SSD1306_GotoXY(8, 0);
+				SSD1306_Puts("   MENU   ", &Font_11x18, 0);
+				SSD1306_GotoXY(35, 20);
+				SSD1306_Puts("Start", &Font_11x18, 0);
+				SSD1306_GotoXY(19, 39);
+				SSD1306_Puts("Settings", &Font_11x18, 1);
+				SSD1306_UpdateScreen();
+				break;
+			case Settings:
+				if(press == 1) statusOled = SettingsLayer;
+				SSD1306_GotoXY(8, 0);
+				SSD1306_Puts("   MENU   ", &Font_11x18, 0);
+				SSD1306_GotoXY(35, 20);
+				SSD1306_Puts("Start", &Font_11x18, 1);
+				SSD1306_GotoXY(19, 39);
+				SSD1306_Puts("Settings", &Font_11x18, 0);
+				SSD1306_UpdateScreen();
+				break;
+			}
+			break;
+		}
+
+			press = 0;
+		osDelay(40 / portTICK_PERIOD_MS);
+	}
   /* USER CODE END StartOledTask */
 }
 
@@ -777,13 +877,18 @@ void StartOledTask(void *argument)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM1) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+	if (htim->Instance == TIM10) {
+		StopPump();
+	}
 
+	if (htim->Instance == TIM11) {
+
+	}
   /* USER CODE END Callback 1 */
 }
 
@@ -794,11 +899,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 

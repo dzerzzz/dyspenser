@@ -1,0 +1,2 @@
+../Core/Src/encoder.c:10:6:SetMaxValue	16	static
+../Core/Src/encoder.c:15:6:ResetPosition	4	static

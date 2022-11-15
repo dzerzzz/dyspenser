@@ -1,0 +1,5 @@
+../Core/Src/gui.c:13:6:SetAnimationTime	8	static
+../Core/Src/gui.c:51:6:DrawShotSearching	16	static
+../Core/Src/gui.c:66:6:DrawShotFill	32	static
+../Core/Src/gui.c:88:6:Print	16	static
+../Core/Src/gui.c:107:6:ClearScreen	8	static
